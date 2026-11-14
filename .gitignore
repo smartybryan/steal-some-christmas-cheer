@@ -1,0 +1,6 @@
+data/
+*.db
+*.db-*
+/steal-some-christmas-cheer
+/duckd
+.claude/

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 230" role="img" aria-label="A yellow duck wearing a Santa hat and a striped scarf">
+  <!-- shadow -->
+  <ellipse cx="105" cy="218" rx="70" ry="8" fill="#000" opacity=".12"/>
+  <!-- feet -->
+  <ellipse cx="80" cy="210" rx="18" ry="7" fill="#f28c28"/>
+  <ellipse cx="125" cy="210" rx="18" ry="7" fill="#f28c28"/>
+  <!-- tail -->
+  <path d="M40 150 L14 122 L52 136 Z" fill="#f5c400"/>
+  <!-- body -->
+  <ellipse cx="100" cy="162" rx="72" ry="50" fill="#ffd93b"/>
+  <ellipse cx="96" cy="176" rx="50" ry="28" fill="#ffe680" opacity=".7"/>
+  <!-- wing -->
+  <path d="M70 150 Q100 128 140 150 Q120 185 78 176 Q64 166 70 150 Z" fill="#f5c400"/>
+  <path d="M84 160 Q104 154 124 160" stroke="#e0ae00" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- head -->
+  <circle cx="130" cy="92" r="42" fill="#ffd93b"/>
+  <!-- beak -->
+  <path d="M162 92 Q200 90 196 104 Q184 116 160 108 Z" fill="#f28c28"/>
+  <path d="M164 104 Q182 106 194 102" stroke="#d96f10" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- eye -->
+  <circle cx="146" cy="84" r="7" fill="#2b2118"/>
+  <circle cx="148.5" cy="81.5" r="2.4" fill="#fff"/>
+  <!-- cheek -->
+  <circle cx="150" cy="104" r="7" fill="#ff8fa3" opacity=".55"/>
+  <!-- santa hat -->
+  <path d="M92 66 Q104 12 150 14 Q186 18 196 52 Q178 38 160 44 Q170 56 172 66 Z" fill="#d62828"/>
+  <path d="M110 40 Q130 26 150 30" stroke="#a91d1d" stroke-width="3" fill="none" stroke-linecap="round" opacity=".6"/>
+  <circle cx="198" cy="56" r="12" fill="#fff"/>
+  <rect x="84" y="58" width="96" height="20" rx="10" fill="#fff"/>
+  <!-- scarf -->
+  <path d="M94 124 Q130 140 168 120 L170 136 Q130 158 92 140 Z" fill="#d62828"/>
+  <path d="M104 131 L106 146 M122 136 L122 152 M140 135 L138 150 M156 128 L156 143" stroke="#1f7a4d" stroke-width="6"/>
+  <path d="M100 136 L84 186 L104 190 L114 142 Z" fill="#d62828"/>
+  <path d="M95 158 L108 160 M90 172 L103 175" stroke="#1f7a4d" stroke-width="6"/>
+  <path d="M84 186 L82 196 M90 188 L89 198 M96 189 L96 199 M102 190 L103 199" stroke="#d62828" stroke-width="3" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Duck HQ Owner Page</title>
+  <link rel="icon" href="duck.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@700&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <nav><a href="index.html">← Duck trail</a><a href="sign.html">Printable sign</a><a href="#" id="logout" class="hidden">Log out</a></nav>
+    <h1>Duck HQ</h1>
+    <p class="tagline">Vet photos, set your return address, and keep the cheer moving.</p>
+  </header>
+
+  <main>
+    <section id="login" class="card hidden" style="max-width:420px;margin-inline:auto">
+      <form id="login-form">
+        <div class="field">
+          <label for="password">Owner password</label>
+          <input type="password" id="password" autocomplete="current-password" required>
+        </div>
+        <div id="login-error" class="notice error hidden" role="alert"></div>
+        <button class="btn red" type="submit">Let me in</button>
+      </form>
+    </section>
+
+    <section id="app" class="hidden">
+      <div class="tabs" role="tablist">
+        <button role="tab" id="tab-regs" aria-selected="true" aria-controls="panel-regs">Registrations <span id="pending-count" class="badge hidden"></span></button>
+        <button role="tab" id="tab-settings" aria-selected="false" aria-controls="panel-settings">Settings</button>
+      </div>
+
+      <div id="panel-regs" role="tabpanel" aria-labelledby="tab-regs">
+        <p class="notice info">The newest registration is the duck's <strong>current</strong> location. It stays hidden from the public until someone steals the duck again, even if you approve it now.</p>
+        <div id="regs"><div class="loading">Loading…</div></div>
+      </div>
+
+      <div id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" class="hidden">
+        <form id="settings-form" class="card">
+          <div class="field">
+            <label for="ownerName">Your name <span class="hint">(shown publicly, e.g. “The Smith Family”)</span></label>
+            <input type="text" id="ownerName" maxlength="80">
+          </div>
+          <div class="field">
+            <label for="homeLocation">Duck HQ location <span class="hint">(shown at the start of the trail, e.g. “Maple Street”)</span></label>
+            <input type="text" id="homeLocation" maxlength="120">
+          </div>
+          <div class="field">
+            <label for="returnAddress">Return address <span class="hint">(shown publicly so the duck can find its way home)</span></label>
+            <textarea id="returnAddress" maxlength="300" placeholder="123 Maple Street&#10;Springfield"></textarea>
+          </div>
+          <div class="field">
+            <label for="returnBy">Return by <span class="hint">(e.g. “January 5”)</span></label>
+            <input type="text" id="returnBy" maxlength="80">
+          </div>
+          <div class="field">
+            <label for="instructions">Extra instructions <span class="hint">(optional)</span></label>
+            <textarea id="instructions" maxlength="2000" placeholder="Just leave it on the porch. Please deflate gently and fold the scarf!"></textarea>
+          </div>
+          <div class="field">
+            <label class="toggle"><input type="checkbox" id="revealAll">
+              <span>Reveal the final location <span class="hint">(turn on after the season ends to show the whole trail, including the last stop)</span></span>
+            </label>
+          </div>
+          <div id="settings-msg" class="notice hidden" role="status"></div>
+          <button class="btn" type="submit">Save settings</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <script>
+  (function () {
+    const { api, el, formatDate, local } = Duck;
+    const TOKEN_KEY = "duckOwnerToken";
+    const fields = ["ownerName", "homeLocation", "returnAddress", "returnBy", "instructions"];
+    let token = local.get(TOKEN_KEY);
+
+    const authed = (path, opts = {}) =>
+      api(path, { ...opts, headers: { ...(opts.headers || {}), Authorization: "Bearer " + token } })
+        .catch((err) => { if (err.status === 401) showLogin(); throw err; });
+
+    function showLogin() {
+      local.remove(TOKEN_KEY);
+      token = null;
+      document.getElementById("app").classList.add("hidden");
+      document.getElementById("logout").classList.add("hidden");
+      document.getElementById("login").classList.remove("hidden");
+      document.getElementById("password").focus();
+    }
+
+    async function showApp() {
+      document.getElementById("login").classList.add("hidden");
+      document.getElementById("app").classList.remove("hidden");
+      document.getElementById("logout").classList.remove("hidden");
+      await Promise.all([loadRegs(), loadSettings()]);
+    }
+
+    document.getElementById("login-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("login-error");
+      errBox.classList.add("hidden");
+      try {
+        const res = await api("/api/owner/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: document.getElementById("password").value }),
+        });
+        token = res.token;
+        local.set(TOKEN_KEY, token);
+        document.getElementById("password").value = "";
+        await showApp();
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.remove("hidden");
+      }
+    });
+
+    document.getElementById("logout").addEventListener("click", (e) => { e.preventDefault(); showLogin(); });
+
+    // tabs
+    const tabs = { regs: document.getElementById("tab-regs"), settings: document.getElementById("tab-settings") };
+    for (const [name, tab] of Object.entries(tabs)) {
+      tab.addEventListener("click", () => {
+        for (const [other, t] of Object.entries(tabs)) {
+          t.setAttribute("aria-selected", String(other === name));
+          document.getElementById("panel-" + other).classList.toggle("hidden", other !== name);
+        }
+      });
+    }
+
+    const statusLabel = { pending: "Needs vetting", approved: "Approved", photo_rejected: "Photo hidden" };
+
+    async function loadRegs() {
+      const box = document.getElementById("regs");
+      try {
+        const { registrations } = await authed("/api/owner/registrations");
+        const pending = registrations.filter((r) => r.status === "pending").length;
+        const badge = document.getElementById("pending-count");
+        badge.textContent = pending;
+        badge.classList.toggle("hidden", pending === 0);
+        if (registrations.length === 0) {
+          box.replaceChildren(el("div", { class: "card loading" }, "No heists yet. The duck is still at Duck HQ! 🦆"));
+          return;
+        }
+        // Show items needing vetting first, then newest first.
+        registrations.sort((a, b) => (a.status === "pending") === (b.status === "pending") ? b.id - a.id : a.status === "pending" ? -1 : 1);
+        const newestId = Math.max(...registrations.map((r) => r.id));
+        box.replaceChildren(...registrations.map((r) => regCard(r, r.id === newestId)));
+      } catch (err) {
+        box.replaceChildren(el("div", { class: "notice error" }, err.message));
+      }
+    }
+
+    function regCard(r, isCurrent) {
+      const nameInput = el("input", { type: "text", value: r.name, maxlength: 60, "aria-label": "Public name" });
+      const locInput = el("input", { type: "text", value: r.publicLocation, maxlength: 120, "aria-label": "Public location" });
+      const act = (action, label, cls) => el("button", {
+        class: "btn small " + cls, type: "button",
+        onclick: async (e) => {
+          if (action === "delete" && !confirm(`Delete ${r.name}'s registration permanently?`)) return;
+          e.target.disabled = true;
+          try {
+            await authed("/api/owner/registrations/" + r.id, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action, name: nameInput.value, publicLocation: locInput.value }),
+            });
+            await loadRegs();
+          } catch (err) {
+            alert(err.message);
+            e.target.disabled = false;
+          }
+        },
+      }, label);
+
+      return el("div", { class: "card reg" },
+        r.photoUrl ? el("img", { src: r.photoUrl, alt: `Photo from ${r.name}`, onclick: () => window.open(r.photoUrl, "_blank") })
+                   : el("div", { class: "loading" }, "No photo"),
+        el("div", {},
+          el("div", {},
+            el("span", { class: "status " + r.status }, statusLabel[r.status] || r.status), " ",
+            isCurrent && el("span", { class: "status tag-current" }, "🤫 Current holder (hidden)")),
+          el("p", { class: "meta" }, `#${r.id} · ${formatDate(r.createdAt)} · Full address: ${r.street}, ${r.city}`),
+          r.message && el("p", {}, `“${r.message}”`),
+          el("div", { class: "row" },
+            el("div", {}, el("label", { class: "hint" }, "Public name"), nameInput),
+            el("div", {}, el("label", { class: "hint" }, "Public location"), locInput)),
+          el("div", { class: "actions" },
+            act("approve", r.status === "approved" ? "💾 Save" : "✅ Approve", ""),
+            r.status !== "photo_rejected" && act("reject_photo", "🙈 Hide photo", "ghost"),
+            r.status !== "pending" && act("pending", "↩️ Back to pending", "ghost"),
+            act("delete", "🗑️ Delete", "red"))));
+    }
+
+    async function loadSettings() {
+      try {
+        const s = await authed("/api/owner/settings");
+        for (const f of fields) document.getElementById(f).value = s[f] || "";
+        document.getElementById("revealAll").checked = !!s.revealAll;
+      } catch { /* shown elsewhere */ }
+    }
+
+    document.getElementById("settings-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById("settings-msg");
+      const body = { revealAll: document.getElementById("revealAll").checked };
+      for (const f of fields) body[f] = document.getElementById(f).value;
+      try {
+        await authed("/api/owner/settings", {
+          method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+        });
+        msg.className = "notice ok";
+        msg.textContent = "Saved! 🎄";
+      } catch (err) {
+        msg.className = "notice error";
+        msg.textContent = err.message;
+      }
+    });
+
+    if (token) showApp(); else showLogin();
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Register Your Duck Heist</title>
+  <link rel="icon" href="duck.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@700&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <ul class="lights" aria-hidden="true"><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li></ul>
+    <nav><a href="index.html">← Back to the duck trail</a></nav>
+    <img class="hero-duck" src="duck.svg" alt="" style="width:min(160px,45vw)">
+    <h1>You got the duck!</h1>
+    <p class="tagline">Nice heist! Register the duck's new home so it shows up on the trail. Don't worry: your stop stays secret until someone steals it from <em>you</em>.</p>
+  </header>
+
+  <main>
+    <section class="card" id="form-card">
+      <form id="form" novalidate>
+        <div class="field">
+          <label for="name">Your name <span class="hint">(a family name works great, like “The Johnsons”)</span></label>
+          <input type="text" id="name" name="name" maxlength="60" required autocomplete="name">
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="street">Street address <span class="hint">(only the street name is shown publicly)</span></label>
+            <input type="text" id="street" name="street" maxlength="120" required autocomplete="address-line1">
+          </div>
+          <div class="field">
+            <label for="city">City</label>
+            <input type="text" id="city" name="city" maxlength="60" required autocomplete="address-level2">
+          </div>
+        </div>
+        <div class="field">
+          <label for="photo-input">A photo of the duck at your place</label>
+          <label class="photo-drop" id="drop" for="photo-input">
+            <span id="drop-text"><span style="font-size:2.4rem">📸</span><br>Tap to take or choose a photo</span>
+            <img id="preview" class="hidden" alt="Preview of your photo">
+            <input type="file" id="photo-input" accept="image/*" required>
+          </label>
+        </div>
+        <div class="field">
+          <label for="message">A message for the trail <span class="hint">(optional, 280 characters max)</span></label>
+          <textarea id="message" name="message" maxlength="280" placeholder="We snuck out at midnight in our pajamas…"></textarea>
+        </div>
+        <div class="hp" aria-hidden="true">
+          <label for="website">Leave this empty</label>
+          <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+        </div>
+        <div id="error" class="notice error hidden" role="alert"></div>
+        <button class="btn red" id="submit" type="submit">🎄 Register my heist</button>
+      </form>
+    </section>
+
+    <section class="card success hidden" id="success">
+      <div class="big">🎉🦆🎉</div>
+      <h2>You're officially a duck thief!</h2>
+      <p>Your stop will appear on the trail once the duck's owner has checked your photo <strong>and</strong> the duck has been stolen from you. No spoilers!</p>
+      <p>Put the duck somewhere visible from the street so the next family can plan their heist.</p>
+      <div id="return-note" class="notice info"></div>
+      <p><a class="btn" href="index.html">See the duck trail</a></p>
+    </section>
+  </main>
+
+  <script>
+  (function () {
+    const { api, el } = Duck;
+    const form = document.getElementById("form");
+    const input = document.getElementById("photo-input");
+    const preview = document.getElementById("preview");
+    const dropText = document.getElementById("drop-text");
+    const drop = document.getElementById("drop");
+    const errorBox = document.getElementById("error");
+    const submit = document.getElementById("submit");
+    let photo = null;
+
+    input.addEventListener("change", () => choose(input.files[0]));
+    drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("drag"); });
+    drop.addEventListener("dragleave", () => drop.classList.remove("drag"));
+    drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("drag"); choose(e.dataTransfer.files[0]); });
+
+    async function choose(file) {
+      if (!file) return;
+      hideError();
+      try {
+        photo = await shrink(file, 1600);
+      } catch {
+        photo = file; // let the server try to read it
+      }
+      preview.src = URL.createObjectURL(photo);
+      preview.classList.remove("hidden");
+      dropText.classList.add("hidden");
+    }
+
+    // Resize and re-encode in the browser so uploads are quick on phones.
+    async function shrink(file, maxSide) {
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(bitmap.width * scale);
+      canvas.height = Math.round(bitmap.height * scale);
+      canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      return await new Promise((resolve, reject) =>
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("encode failed"))), "image/jpeg", 0.88));
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError();
+      const value = (id) => document.getElementById(id).value.trim();
+      if (!value("name") || !value("street") || !value("city")) return showError("Please fill in your name, street, and city.");
+      if (!photo) return showError("Please add a photo of the duck in its new home!");
+
+      const data = new FormData();
+      for (const id of ["name", "street", "city", "message", "website"]) data.append(id, value(id));
+      data.append("photo", photo, "duck.jpg");
+
+      submit.disabled = true;
+      submit.textContent = "Sneaking it in…";
+      try {
+        await api("/api/register", { method: "POST", body: data });
+        await showSuccess();
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        submit.disabled = false;
+        submit.textContent = "🎄 Register my heist";
+      }
+    });
+
+    async function showSuccess() {
+      document.getElementById("form-card").classList.add("hidden");
+      document.getElementById("success").classList.remove("hidden");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      const note = document.getElementById("return-note");
+      note.textContent = "Remember: if you have the duck after New Year's, please return it to its owner.";
+      try {
+        const { settings } = await api("/api/public");
+        if (settings.returnAddress) {
+          note.replaceChildren("If you still have the duck after New Year's, please return it" +
+            (settings.returnBy ? ` by ${settings.returnBy}` : "") + " to: ",
+            el("strong", {}, settings.returnAddress.replace(/\n/g, ", ")));
+        }
+      } catch { /* the default note is fine */ }
+    }
+
+    function showError(msg) { errorBox.textContent = msg; errorBox.classList.remove("hidden"); }
+    function hideError() { errorBox.classList.add("hidden"); }
+  })();
+  </script>
+</body>
+</html>

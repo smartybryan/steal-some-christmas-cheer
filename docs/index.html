@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Steal Some Christmas Cheer</title>
+  <meta name="description" content="Follow the Christmas duck as neighbors steal it from yard to yard. Can you find where it's hiding now?">
+  <link rel="icon" href="duck.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@700&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <ul class="lights" aria-hidden="true"><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li></ul>
+    <nav><a href="#how">How it works</a><a href="#trail">The duck trail</a><a href="#return">Returning the duck</a></nav>
+    <img class="hero-duck" src="duck.svg" alt="The Christmas duck in a Santa hat and scarf">
+    <h1>Steal Some Christmas Cheer!</h1>
+    <p class="tagline">A very festive duck is on the loose. Plan your heist, sneak it into your yard, and pass the cheer along the neighborhood.</p>
+  </header>
+
+  <main>
+    <div class="cta">
+      <a class="btn red" href="register.html">🦆 I've got the duck! Register my heist</a>
+    </div>
+
+    <section id="how">
+      <h2>How it works</h2>
+      <div class="steps">
+        <div class="card step"><div class="icon">🗺️</div><h3>1. Find the duck</h3><p>It moves around the neighborhood. Watch the trail below for clues, then go hunting.</p></div>
+        <div class="card step"><div class="icon">🥷</div><h3>2. Plan the heist</h3><p>Rally the family, plot your route, and steal the duck before someone else does!</p></div>
+        <div class="card step"><div class="icon">📸</div><h3>3. Register your loot</h3><p>Scan the QR code on the sign, add a photo of the duck in your yard, and put it on display.</p></div>
+      </div>
+    </section>
+
+    <section id="trail">
+      <h2>The duck trail</h2>
+      <div id="counter" class="counter"></div>
+      <ol id="stops" class="trail"><li class="loading">Following the footprints…</li></ol>
+    </section>
+
+    <section id="return">
+      <div class="card candy return-box">
+        <div class="big" aria-hidden="true">🎁</div>
+        <div>
+          <h2>After New Year's, send the duck home</h2>
+          <div id="return-details"><p>Whoever has the duck after New Year's, please return it to its owner.</p></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>Made with 🎄 and a little mischief. <a href="owner.html">Owner login</a></footer>
+
+  <script>
+  (async function () {
+    const { api, el, formatDate } = Duck;
+    const stops = document.getElementById("stops");
+    try {
+      const data = await api("/api/public");
+      render(data);
+    } catch (err) {
+      stops.replaceChildren(el("li", { class: "notice error" }, "The duck trail is hiding too! " + err.message));
+    }
+
+    function render({ settings, stops: trail, totalSteals }) {
+      const counter = document.getElementById("counter");
+      counter.replaceChildren(
+        el("strong", {}, totalSteals),
+        totalSteals === 1 ? "heist so far" : "heists so far"
+      );
+
+      const items = [];
+      items.push(el("li", { class: "stop home" },
+        el("div", { class: "pin" }, "🏠"),
+        el("div", { class: "card" }, el("div", {},
+          el("div", { class: "who" }, "Duck HQ" + (settings.ownerName ? ` · ${settings.ownerName}` : "")),
+          settings.homeLocation && el("div", { class: "where" }, settings.homeLocation),
+          el("div", { class: "when" }, "Where it all began")))));
+
+      trail.forEach((stop, i) => {
+        const card = el("div", { class: "card" + (stop.photoUrl ? " has-photo" : "") },
+          stop.photoUrl && el("img", {
+            src: stop.photoUrl, alt: `The duck at ${stop.name}'s house`, loading: "lazy",
+            onclick: () => lightbox(stop.photoUrl),
+          }),
+          el("div", {},
+            el("div", { class: "who" }, `Stop #${i + 1}: ${stop.name}`),
+            el("div", { class: "where" }, "📍 " + stop.location),
+            el("div", { class: "when" }, "Stolen " + formatDate(stop.date)),
+            stop.message && el("p", { class: "msg" }, `“${stop.message}”`)));
+        items.push(el("li", { class: "stop" }, el("div", { class: "pin" }, "🦆"), card));
+      });
+
+      if (settings.revealAll) {
+        items.push(el("li", { class: "stop secret" }, el("div", { class: "pin" }, "🎉"),
+          el("div", { class: "card" }, el("div", {},
+            el("div", { class: "where" }, "The season is over!"),
+            el("p", {}, "Thanks for playing! Time to bring the duck home.")))));
+      } else if (totalSteals > 0) {
+        items.push(el("li", { class: "stop secret" }, el("div", { class: "pin" }, "?"),
+          el("div", { class: "card" }, el("div", {},
+            el("div", { class: "who" }, "Current location"),
+            el("div", { class: "where" }, "Top Secret!"),
+            el("p", {}, "Someone has the duck right now… but who? Its hiding spot is revealed only after the next heist. Get sleuthing!")))));
+      } else {
+        items.push(el("li", { class: "stop secret" }, el("div", { class: "pin" }, "?"),
+          el("div", { class: "card" }, el("div", {},
+            el("div", { class: "where" }, "Still at Duck HQ!"),
+            el("p", {}, "Nobody has stolen the duck yet. Will you be the first?")))));
+      }
+      stops.replaceChildren(...items);
+
+      const details = document.getElementById("return-details");
+      const parts = [el("p", {}, "Whoever has the duck after New Year's, please bring it home" +
+        (settings.ownerName ? ` to ${settings.ownerName}` : "") +
+        (settings.returnBy ? ` by ${settings.returnBy}` : "") + ".")];
+      if (settings.returnAddress) parts.push(el("address", {}, settings.returnAddress));
+      if (settings.instructions) parts.push(el("p", { class: "instructions" }, settings.instructions));
+      details.replaceChildren(...parts);
+    }
+
+    function lightbox(src) {
+      const box = el("div", { class: "lightbox", role: "dialog", "aria-label": "Photo", onclick: () => box.remove() },
+        el("img", { src, alt: "" }));
+      document.body.append(box);
+    }
+  })();
+  </script>
+</body>
+</html>
