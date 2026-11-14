@@ -37,7 +37,7 @@ Then open http://localhost:8080. The Go server also serves the website, so GitHu
 |---|---|---|
 | `OWNER_PASSWORD` | yes | Password for `owner.html`. |
 | `SECRET` | strongly recommended | Random string used to sign logins and review links. If unset, a random one is generated and links break on restart. |
-| `PORT` | | Default `8080`. |
+| `PORT`, `LISTEN_HOST` | | Default `8080` on all interfaces. Set `LISTEN_HOST=127.0.0.1` behind a reverse proxy. |
 | `DATA_DIR` | | Where `duck.db` lives. Default `./data`. **Back this up.** |
 | `PUBLIC_URL` | yes in production | External URL of this server, e.g. `https://duck.example.com`. Used in photo URLs and review links. |
 | `SITE_URL` | | URL of the website, e.g. `https://smartybryan.github.io/steal-some-christmas-cheer`. Defaults to `PUBLIC_URL`. |
@@ -57,6 +57,32 @@ it is never included in the public `/api/public` response. Use **Send a test ema
 **Using Gmail:** turn on 2-step verification, create an app password at
 https://myaccount.google.com/apppasswords, then set `SMTP_HOST=smtp.gmail.com`,
 `SMTP_USERNAME=you@gmail.com` and `SMTP_PASSWORD=<the app password>`.
+
+### Deploying to a Linux server
+
+Works the same way as puzzle-table: `make` builds a Linux binary (the website is built into it),
+zips it with `deploy/deploy.sh` and `christmas-duck.env.example`, copies it to the server, and runs
+`deploy.sh` there. `deploy.sh` stops the running server and starts the new one in the background,
+so it keeps running after you log out.
+
+```bash
+make deploy                                   # defaults: bryan@oyd:/home/bryan/christmas-duck
+make deploy DEPLOY_HOST=me@host DEPLOY_DIR=/srv/duck
+make build GOARCH=arm64                       # just build dist/christmas-duck.zip, for an ARM server
+```
+
+The first time, the server won't start until it has settings. On the server:
+
+```bash
+cd ~/christmas-duck
+cp christmas-duck.env.example christmas-duck.env && chmod 600 christmas-duck.env
+nano christmas-duck.env                       # OWNER_PASSWORD, SECRET, PUBLIC_URL, SMTP_*
+./deploy.sh
+```
+
+It listens on `127.0.0.1:8081` by default (puzzle-table has 8080), so put it behind the same HTTPS
+web server, forwarding your duck domain to `127.0.0.1:8081` and allowing uploads up to 25 MB.
+Output goes to `christmas-duck.log`, and registrations and photos live in `data/`. Back up that folder.
 
 ### Docker
 

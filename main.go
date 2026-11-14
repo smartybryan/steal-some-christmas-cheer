@@ -28,6 +28,7 @@ var site embed.FS
 
 func main() {
 	port := env("PORT", "8080")
+	addr := os.Getenv("LISTEN_HOST") + ":" + port // e.g. 127.0.0.1 behind a reverse proxy
 	publicURL := strings.TrimSuffix(env("PUBLIC_URL", "http://localhost:"+port), "/")
 	siteURL := strings.TrimSuffix(env("SITE_URL", publicURL), "/")
 
@@ -71,7 +72,7 @@ func main() {
 		cfg.Email = sender
 	}
 	srv := &http.Server{
-		Addr:              ":" + port,
+		Addr:              addr,
 		Handler:           server.New(cfg, st, notifiers()).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       2 * time.Minute,
@@ -81,7 +82,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go func() {
-		log.Printf("🦆 duck server listening on :%s (public URL %s)", port, publicURL)
+		log.Printf("🦆 duck server listening on %s (public URL %s)", addr, publicURL)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)
 		}
