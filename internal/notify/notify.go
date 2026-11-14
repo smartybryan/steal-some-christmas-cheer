@@ -42,10 +42,18 @@ type Email struct {
 	Host, Port, Username, Password, From, To string
 }
 
-func (e Email) Notify(_ context.Context, subject, body string) error {
+func (e Email) Notify(ctx context.Context, subject, body string) error {
+	return e.SendTo(ctx, e.To, subject, body)
+}
+
+// SendTo sends to a specific recipient instead of e.To.
+func (e Email) SendTo(_ context.Context, to, subject, body string) error {
+	if strings.ContainsAny(to+subject, "\r\n") {
+		return fmt.Errorf("invalid header value")
+	}
 	msg := strings.Join([]string{
 		"From: " + e.From,
-		"To: " + e.To,
+		"To: " + to,
 		"Subject: " + subject,
 		"MIME-Version: 1.0",
 		"Content-Type: text/plain; charset=UTF-8",
@@ -56,7 +64,13 @@ func (e Email) Notify(_ context.Context, subject, body string) error {
 	if e.Username != "" {
 		auth = smtp.PlainAuth("", e.Username, e.Password, e.Host)
 	}
-	return smtp.SendMail(e.Host+":"+e.Port, auth, e.From, strings.Split(e.To, ","), []byte(msg))
+	var rcpt []string
+	for addr := range strings.SplitSeq(to, ",") {
+		if addr = strings.TrimSpace(addr); addr != "" {
+			rcpt = append(rcpt, addr)
+		}
+	}
+	return smtp.SendMail(e.Host+":"+e.Port, auth, e.From, rcpt, []byte(msg))
 }
 
 // SMS sends a text message through Twilio's REST API.

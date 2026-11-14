@@ -37,7 +37,8 @@ type Registration struct {
 	HasPhoto       bool      `json:"hasPhoto"`
 }
 
-// Settings are configured by the duck's owner and shown publicly.
+// Settings are configured by the duck's owner. Everything except NotifyEmail
+// is shown publicly; use Public to get the shareable subset.
 type Settings struct {
 	OwnerName     string `json:"ownerName"`
 	HomeLocation  string `json:"homeLocation"`
@@ -45,6 +46,13 @@ type Settings struct {
 	ReturnBy      string `json:"returnBy"`
 	Instructions  string `json:"instructions"`
 	RevealAll     bool   `json:"revealAll"`
+	NotifyEmail   string `json:"notifyEmail,omitempty"` // private: where new-registration alerts go
+}
+
+// Public returns the settings with private fields cleared.
+func (s Settings) Public() Settings {
+	s.NotifyEmail = ""
+	return s
 }
 
 // Store wraps the SQLite database.
@@ -67,7 +75,15 @@ CREATE TABLE IF NOT EXISTS registrations (
 CREATE TABLE IF NOT EXISTS settings (
 	id   INTEGER PRIMARY KEY CHECK (id = 1),
 	data TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS images (
+	name       TEXT PRIMARY KEY,
+	updated_at INTEGER NOT NULL,
+	data       BLOB NOT NULL
 );`
+
+// HomePhotoName is the image shown at the start of the trail (Duck HQ).
+const HomePhotoName = "home"
 
 // Open opens (and if needed creates) the database at path.
 func Open(path string) (*Store, error) {
@@ -220,6 +236,41 @@ func (s *Store) Settings(ctx context.Context) (Settings, error) {
 		return settings, err
 	}
 	return settings, json.Unmarshal([]byte(data), &settings)
+}
+
+// SaveImage stores (or replaces) a named image.
+func (s *Store) SaveImage(ctx context.Context, name string, data []byte, now time.Time) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO images (name, updated_at, data) VALUES (?, ?, ?)
+		 ON CONFLICT(name) DO UPDATE SET updated_at = excluded.updated_at, data = excluded.data`,
+		name, now.UnixNano(), data)
+	return err
+}
+
+// Image returns a named image.
+func (s *Store) Image(ctx context.Context, name string) ([]byte, error) {
+	var data []byte
+	err := s.db.QueryRowContext(ctx, `SELECT data FROM images WHERE name = ?`, name).Scan(&data)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return data, err
+}
+
+// ImageVersion returns a value that changes whenever the image changes, for
+// cache-busting URLs. ok is false if the image doesn't exist.
+func (s *Store) ImageVersion(ctx context.Context, name string) (version int64, ok bool, err error) {
+	err = s.db.QueryRowContext(ctx, `SELECT updated_at FROM images WHERE name = ?`, name).Scan(&version)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, false, nil
+	}
+	return version, err == nil, err
+}
+
+// DeleteImage removes a named image (no error if it doesn't exist).
+func (s *Store) DeleteImage(ctx context.Context, name string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM images WHERE name = ?`, name)
+	return err
 }
 
 // SaveSettings replaces the owner settings.

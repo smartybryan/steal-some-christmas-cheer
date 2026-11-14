@@ -65,6 +65,10 @@ func main() {
 		SiteURL:        siteURL,
 		TrustProxy:     os.Getenv("TRUST_PROXY") == "true",
 		Static:         static,
+		EmailFallback:  os.Getenv("NOTIFY_EMAIL"),
+	}
+	if sender := emailSender(); sender != nil {
+		cfg.Email = sender
 	}
 	srv := &http.Server{
 		Addr:              ":" + port,
@@ -88,19 +92,29 @@ func main() {
 	_ = srv.Shutdown(shutdown)
 }
 
+// emailSender returns the SMTP sender, or nil if SMTP isn't configured. The
+// recipient comes from the owner settings page, falling back to NOTIFY_EMAIL.
+// (Returned as a pointer and assigned only when non-nil so the interface
+// field stays truly nil when email is off.)
+func emailSender() *notify.Email {
+	host := os.Getenv("SMTP_HOST")
+	if host == "" {
+		log.Print("email notifications disabled (SMTP_HOST not set)")
+		return nil
+	}
+	user := os.Getenv("SMTP_USERNAME")
+	log.Printf("email notifications enabled via %s", host)
+	return &notify.Email{
+		Host:     host,
+		Port:     env("SMTP_PORT", "587"),
+		Username: user,
+		Password: os.Getenv("SMTP_PASSWORD"),
+		From:     env("SMTP_FROM", user),
+	}
+}
+
 func notifiers() notify.Notifier {
 	all := notify.Multi{notify.Log{}}
-	if to := os.Getenv("NOTIFY_EMAIL"); to != "" {
-		all = append(all, notify.Email{
-			Host:     os.Getenv("SMTP_HOST"),
-			Port:     env("SMTP_PORT", "587"),
-			Username: os.Getenv("SMTP_USERNAME"),
-			Password: os.Getenv("SMTP_PASSWORD"),
-			From:     os.Getenv("SMTP_FROM"),
-			To:       to,
-		})
-		log.Printf("email notifications enabled")
-	}
 	if to := os.Getenv("NOTIFY_SMS"); to != "" {
 		all = append(all, notify.SMS{
 			AccountSID: os.Getenv("TWILIO_ACCOUNT_SID"),

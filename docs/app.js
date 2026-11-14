@@ -56,6 +56,23 @@
     document.body.prepend(layer);
   }
 
-  window.Duck = { api, el, formatDate, local: storage("localStorage"), apiBase: base, snow };
+  // Resize and re-encode a photo in the browser so uploads are quick on phones.
+  // Falls back to the original file if the browser can't process it.
+  async function shrinkImage(file, maxSide = 1600) {
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(bitmap.width * scale);
+      canvas.height = Math.round(bitmap.height * scale);
+      canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      return await new Promise((resolve, reject) =>
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("encode failed"))), "image/jpeg", 0.88));
+    } catch {
+      return file; // let the server try to read it
+    }
+  }
+
+  window.Duck = { api, el, formatDate, local: storage("localStorage"), apiBase: base, snow, shrinkImage };
   document.addEventListener("DOMContentLoaded", () => snow());
 })();

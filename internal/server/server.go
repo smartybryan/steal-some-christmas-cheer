@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"regexp"
 	"slices"
@@ -21,7 +22,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/smartybryan/steal-some-christmas-cheer/internal/auth"
-	"github.com/smartybryan/steal-some-christmas-cheer/internal/imaging"
 	"github.com/smartybryan/steal-some-christmas-cheer/internal/notify"
 	"github.com/smartybryan/steal-some-christmas-cheer/internal/store"
 )
@@ -42,7 +42,14 @@ type Config struct {
 	SiteURL        string   // base URL of the website (may equal PublicURL)
 	TrustProxy     bool     // use X-Forwarded-For for client IPs
 	Static         fs.FS    // optional: serve the website from this server too
+	Email          Mailer   // optional; nil when the server can't send email
+	EmailFallback  string   // recipient when the owner hasn't set one in settings
 	Now            func() time.Time
+}
+
+// Mailer sends an email to a specific recipient.
+type Mailer interface {
+	SendTo(ctx context.Context, to, subject, body string) error
 }
 
 // Server handles HTTP requests.
@@ -81,6 +88,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/owner/photos/{id}", s.owner(s.handleOwnerPhoto))
 	mux.HandleFunc("GET /api/owner/settings", s.owner(s.handleGetSettings))
 	mux.HandleFunc("PUT /api/owner/settings", s.owner(s.handlePutSettings))
+	mux.HandleFunc("POST /api/owner/test-email", s.owner(s.handleTestEmail))
+	mux.HandleFunc("PUT /api/owner/home-photo", s.owner(s.handlePutHomePhoto))
+	mux.HandleFunc("DELETE /api/owner/home-photo", s.owner(s.handleDeleteHomePhoto))
+	mux.HandleFunc("GET /api/home-photo", s.handleHomePhoto)
 
 	mux.HandleFunc("GET /review/{id}", s.handleReviewPage)
 	mux.HandleFunc("GET /review/{id}/photo", s.handleReviewPhoto)
@@ -125,9 +136,10 @@ func (s *Server) handlePublic(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, map[string]any{
-		"settings":    settings,
-		"stops":       stops,
-		"totalSteals": total,
+		"settings":     settings.Public(),
+		"homePhotoUrl": s.homePhotoURL(r.Context()),
+		"stops":        stops,
+		"totalSteals":  total,
 	})
 }
 
@@ -176,20 +188,8 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	reg.PublicLocation = PublicLocation(reg.Street, reg.City)
 
-	file, _, err := r.FormFile("photo")
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "Please include a photo of the duck in its new home!")
-		return
-	}
-	defer file.Close()
-	raw, err := io.ReadAll(file)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "We couldn't read that photo.")
-		return
-	}
-	photo, err := imaging.Normalize(raw, maxPhotoSide)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "We couldn't read that photo. Please use a JPEG, PNG, GIF, or WebP image.")
+	photo, ok := readPhoto(w, r, "Please include a photo of the duck in its new home!")
+	if !ok {
 		return
 	}
 
@@ -209,6 +209,28 @@ func (s *Server) notifyOwner(id int64, reg store.Registration) {
 	body := fmt.Sprintf("%s registered the duck at %s, %s.\n\nApprove or reject: %s\n\nOwner page: %s/owner.html",
 		reg.Name, reg.Street, reg.City, s.reviewURL(id), strings.TrimSuffix(s.cfg.SiteURL, "/"))
 	_ = s.notifier.Notify(ctx, subject, body)
+	if err := s.sendEmail(ctx, subject, body); err != nil && !errors.Is(err, errNoEmail) {
+		log.Printf("notify email: %v", err)
+	}
+}
+
+var errNoEmail = errors.New("email not configured")
+
+// sendEmail emails the owner at the address from the owner settings, falling
+// back to the server's default recipient.
+func (s *Server) sendEmail(ctx context.Context, subject, body string) error {
+	if s.cfg.Email == nil {
+		return errNoEmail
+	}
+	settings, err := s.store.Settings(ctx)
+	if err != nil {
+		return err
+	}
+	to := orDefault(settings.NotifyEmail, s.cfg.EmailFallback)
+	if to == "" {
+		return errNoEmail
+	}
+	return s.cfg.Email.SendTo(ctx, to, subject, body)
 }
 
 func (s *Server) reviewURL(id int64) string {
@@ -352,7 +374,39 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, settings)
+	writeJSON(w, http.StatusOK, s.ownerSettings(r.Context(), settings))
+}
+
+type ownerSettings struct {
+	store.Settings
+	EmailConfigured bool   `json:"emailConfigured"` // the server can send email (SMTP is set up)
+	HomePhotoURL    string `json:"homePhotoUrl"`
+}
+
+func (s *Server) ownerSettings(ctx context.Context, settings store.Settings) ownerSettings {
+	return ownerSettings{
+		Settings:        settings,
+		EmailConfigured: s.cfg.Email != nil,
+		HomePhotoURL:    s.homePhotoURL(ctx),
+	}
+}
+
+func (s *Server) handleTestEmail(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	err := s.sendEmail(ctx, "🦆 Test from Steal Some Christmas Cheer",
+		"Ho ho ho! Email alerts are working. You'll get a message like this whenever someone registers the duck.")
+	switch {
+	case errors.Is(err, errNoEmail) && s.cfg.Email == nil:
+		writeError(w, http.StatusBadRequest, "The server isn't set up to send email yet. Set SMTP_HOST and related settings on the server.")
+	case errors.Is(err, errNoEmail):
+		writeError(w, http.StatusBadRequest, "Enter an email address and save your settings first.")
+	case err != nil:
+		log.Printf("test email: %v", err)
+		writeError(w, http.StatusBadGateway, "Couldn't send the email: "+err.Error())
+	default:
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	}
 }
 
 func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
@@ -366,11 +420,20 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	settings.ReturnAddress = truncate(cleanMultiline(settings.ReturnAddress), 300)
 	settings.ReturnBy = truncate(clean(settings.ReturnBy), 80)
 	settings.Instructions = truncate(cleanMultiline(settings.Instructions), 2000)
+	settings.NotifyEmail = clean(settings.NotifyEmail)
+	if settings.NotifyEmail != "" {
+		addr, err := mail.ParseAddress(settings.NotifyEmail)
+		if err != nil || addr.Name != "" || len(addr.Address) > 254 {
+			writeError(w, http.StatusBadRequest, "That email address doesn't look right.")
+			return
+		}
+		settings.NotifyEmail = addr.Address
+	}
 	if err := s.store.SaveSettings(r.Context(), settings); err != nil {
 		serverError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, settings)
+	writeJSON(w, http.StatusOK, s.ownerSettings(r.Context(), settings))
 }
 
 // ---------- helpers ----------
@@ -381,7 +444,7 @@ func (s *Server) cors(next http.Handler) http.Handler {
 		if origin != "" && slices.Contains(s.cfg.AllowedOrigins, origin) {
 			h := w.Header()
 			h.Set("Access-Control-Allow-Origin", origin)
-			h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+			h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 			h.Set("Access-Control-Max-Age", "86400")
 			h.Add("Vary", "Origin")

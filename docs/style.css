@@ -87,6 +87,10 @@ h1, h2, .display { font-family: var(--display); font-weight: 700; line-height: 1
 h1 { font-size: clamp(2.4rem, 8vw, 4.4rem); margin: .2em 0 .1em; text-shadow: 0 3px 0 rgba(0,0,0,.18); }
 h2 { font-size: clamp(1.9rem, 5vw, 2.6rem); color: var(--red); margin: 0 0 .4em; }
 .tagline { font-size: 1.15rem; max-width: 620px; margin: 0 auto; opacity: .95; }
+.poem { max-width: 640px; margin: 4px auto 0; font-size: 1.12rem; line-height: 1.6; font-style: italic; }
+.poem p { margin: 0 0 .7em; text-wrap: balance; }
+.poem p:last-child { margin-bottom: 0; font-weight: 800; font-style: normal; color: var(--gold); text-shadow: 0 1px 0 rgba(0,0,0,.2); }
+@media (max-width: 520px) { .poem { font-size: 1rem; } }
 
 .hero-duck {
   width: min(240px, 60vw); margin: 10px auto 0; display: block;
@@ -141,6 +145,15 @@ section { margin: 40px 0; }
 .step .icon { font-size: 2.6rem; }
 .step h3 { margin: 6px 0; font-size: 1.15rem; }
 .step p { margin: 0; color: var(--muted); }
+.step-art { width: 3.8rem; height: 3.8rem; display: block; margin: 0 auto; }
+.step-link {
+  display: block; color: inherit; text-decoration: none; cursor: pointer;
+  border-color: var(--red); transition: transform .12s ease, box-shadow .12s ease;
+}
+.step-link:hover, .step-link:focus-visible { transform: translateY(-3px); box-shadow: 0 10px 28px rgba(200, 16, 46, .22); }
+.step-link:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
+.step-link h3 { color: var(--red); }
+.step-go { display: inline-block; margin-top: 10px; font-weight: 800; color: var(--red); }
 
 /* ---------- trail ---------- */
 .trail { list-style: none; padding: 0; margin: 0; position: relative; }
@@ -154,6 +167,10 @@ section { margin: 40px 0; }
   position: absolute; left: 6px; top: 10px; width: 48px; height: 48px; border-radius: 50%;
   display: grid; place-items: center; font-size: 1.4rem;
   background: #fff; border: 3px solid var(--green); box-shadow: var(--shadow);
+}
+.stop .pin img {
+  width: 36px; height: 36px; object-fit: contain; border-radius: 0;
+  background: none; cursor: default; max-height: none;
 }
 .stop .card { padding: 16px; display: grid; gap: 12px; }
 .stop .card.has-photo { grid-template-columns: 140px 1fr; align-items: start; }
@@ -190,7 +207,7 @@ section { margin: 40px 0; }
 form .field { margin-bottom: 16px; }
 label { display: block; font-weight: 800; margin-bottom: 6px; }
 .hint { font-weight: 400; color: var(--muted); font-size: .9rem; }
-input[type=text], input[type=password], textarea {
+input[type=text], input[type=password], input[type=email], textarea {
   width: 100%; font: inherit; padding: 12px 14px; border-radius: 12px;
   border: 2px solid var(--line); background: #fffdf9; color: var(--ink);
 }

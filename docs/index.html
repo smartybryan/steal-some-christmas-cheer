@@ -19,7 +19,12 @@
     <nav><a href="#how">How it works</a><a href="#trail">The duck trail</a><a href="#return">Returning the duck</a></nav>
     <img class="hero-duck" src="duck.svg" alt="The Christmas duck in a Santa hat and scarf">
     <h1>Steal Some Christmas Cheer!</h1>
-    <p class="tagline">A very festive duck is on the loose. Plan your heist, sneak it into your yard, and pass the cheer along the neighborhood.</p>
+    <div class="poem">
+      <p>Christmas is coming, and out on our lawn,<br>is a big yellow duck with a Santa hat on.</p>
+      <p>He's festive and cute, so we know he won't stay,<br>because someone else will take him away.</p>
+      <p>So plot how to do it, but be quiet as a mouse,<br>then put this big guy in front of your house.</p>
+      <p>Let's keep him moving and keep track of his run.<br>Getting put on the naughty list has never been such fun!</p>
+    </div>
   </header>
 
   <main>
@@ -31,8 +36,8 @@
       <h2>How it works</h2>
       <div class="steps">
         <div class="card step"><div class="icon">🗺️</div><h3>1. Find the duck</h3><p>It moves around the neighborhood. Watch the trail below for clues, then go hunting.</p></div>
-        <div class="card step"><div class="icon">🥷</div><h3>2. Plan the heist</h3><p>Rally the family, plot your route, and steal the duck before someone else does!</p></div>
-        <div class="card step"><div class="icon">📸</div><h3>3. Register your loot</h3><p>Scan the QR code on the sign, add a photo of the duck in your yard, and put it on display.</p></div>
+        <div class="card step"><div class="icon"><img src="elf-burglar.svg" alt="" class="step-art"></div><h3>2. Plan the holiday heist</h3><p>Rally the family, plot your route, and steal the duck before someone else does!</p></div>
+        <a class="card step step-link" href="register.html"><div class="icon"><img src="naughty-list.svg" alt="" class="step-art"></div><h3>3. Register the duck and get on the naughty list</h3><p>Add your name, location and photo to the duck trail.</p><span class="step-go">Register now →</span></a>
       </div>
     </section>
 
@@ -66,7 +71,7 @@
       stops.replaceChildren(el("li", { class: "notice error" }, "The duck trail is hiding too! " + err.message));
     }
 
-    function render({ settings, stops: trail, totalSteals }) {
+    function render({ settings, homePhotoUrl, stops: trail, totalSteals }) {
       const counter = document.getElementById("counter");
       counter.replaceChildren(
         el("strong", {}, totalSteals),
@@ -76,7 +81,12 @@
       const items = [];
       items.push(el("li", { class: "stop home" },
         el("div", { class: "pin" }, "🏠"),
-        el("div", { class: "card" }, el("div", {},
+        el("div", { class: "card" + (homePhotoUrl ? " has-photo" : "") },
+          homePhotoUrl && el("img", {
+            src: homePhotoUrl, alt: "The duck at Duck HQ", loading: "lazy",
+            onclick: () => lightbox(homePhotoUrl),
+          }),
+          el("div", {},
           el("div", { class: "who" }, "Duck HQ" + (settings.ownerName ? ` · ${settings.ownerName}` : "")),
           settings.homeLocation && el("div", { class: "where" }, settings.homeLocation),
           el("div", { class: "when" }, "Where it all began")))));
@@ -92,7 +102,7 @@
             el("div", { class: "where" }, "📍 " + stop.location),
             el("div", { class: "when" }, "Stolen " + formatDate(stop.date)),
             stop.message && el("p", { class: "msg" }, `“${stop.message}”`)));
-        items.push(el("li", { class: "stop" }, el("div", { class: "pin" }, "🦆"), card));
+        items.push(el("li", { class: "stop" }, el("div", { class: "pin" }, el("img", { src: "duck.svg", alt: "" })), card));
       });
 
       if (settings.revealAll) {

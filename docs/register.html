@@ -89,26 +89,10 @@
     async function choose(file) {
       if (!file) return;
       hideError();
-      try {
-        photo = await shrink(file, 1600);
-      } catch {
-        photo = file; // let the server try to read it
-      }
+      photo = await Duck.shrinkImage(file);
       preview.src = URL.createObjectURL(photo);
       preview.classList.remove("hidden");
       dropText.classList.add("hidden");
-    }
-
-    // Resize and re-encode in the browser so uploads are quick on phones.
-    async function shrink(file, maxSide) {
-      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-      const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(bitmap.width * scale);
-      canvas.height = Math.round(bitmap.height * scale);
-      canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      return await new Promise((resolve, reject) =>
-        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("encode failed"))), "image/jpeg", 0.88));
     }
 
     form.addEventListener("submit", async (e) => {

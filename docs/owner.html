@@ -46,12 +46,31 @@
       <div id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" class="hidden">
         <form id="settings-form" class="card">
           <div class="field">
+            <label for="notifyEmail">📬 Email me when someone registers <span class="hint">(private, never shown on the site)</span></label>
+            <input type="email" id="notifyEmail" maxlength="254" autocomplete="email" placeholder="you@example.com">
+            <p class="hint" style="margin:6px 0 0">You'll get a link to approve or reject the photo right from your phone.</p>
+            <div id="email-not-configured" class="notice info hidden">The server isn't set up to send email yet. Ask whoever runs it to set the SMTP settings (see the README).</div>
+            <button type="button" id="test-email" class="btn small ghost" style="margin-top:8px">Send a test email</button>
+            <div id="test-email-msg" class="notice hidden" role="status"></div>
+          </div>
+          <hr style="border:0;border-top:2px dashed var(--line);margin:20px 0">
+          <div class="field">
             <label for="ownerName">Your name <span class="hint">(shown publicly, e.g. “The Smith Family”)</span></label>
             <input type="text" id="ownerName" maxlength="80">
           </div>
           <div class="field">
             <label for="homeLocation">Duck HQ location <span class="hint">(shown at the start of the trail, e.g. “Maple Street”)</span></label>
             <input type="text" id="homeLocation" maxlength="120">
+          </div>
+          <div class="field">
+            <label for="home-photo-input">Duck HQ photo <span class="hint">(optional, shown at the start of the trail, e.g. the duck on your lawn)</span></label>
+            <label class="photo-drop" id="home-drop" for="home-photo-input">
+              <span id="home-drop-text"><span style="font-size:2.4rem">🏠</span><br>Tap to choose a photo</span>
+              <img id="home-preview" class="hidden" alt="Duck HQ photo">
+              <input type="file" id="home-photo-input" accept="image/*">
+            </label>
+            <button type="button" id="home-photo-remove" class="btn small ghost hidden" style="margin-top:8px">Remove photo</button>
+            <div id="home-photo-msg" class="notice hidden" role="status"></div>
           </div>
           <div class="field">
             <label for="returnAddress">Return address <span class="hint">(shown publicly so the duck can find its way home)</span></label>
@@ -81,7 +100,7 @@
   (function () {
     const { api, el, formatDate, local } = Duck;
     const TOKEN_KEY = "duckOwnerToken";
-    const fields = ["ownerName", "homeLocation", "returnAddress", "returnBy", "instructions"];
+    const fields = ["notifyEmail", "ownerName", "homeLocation", "returnAddress", "returnBy", "instructions"];
     let token = local.get(TOKEN_KEY);
 
     const authed = (path, opts = {}) =>
@@ -206,8 +225,71 @@
         const s = await authed("/api/owner/settings");
         for (const f of fields) document.getElementById(f).value = s[f] || "";
         document.getElementById("revealAll").checked = !!s.revealAll;
+        document.getElementById("email-not-configured").classList.toggle("hidden", !!s.emailConfigured);
+        document.getElementById("test-email").classList.toggle("hidden", !s.emailConfigured);
+        showHomePhoto(s.homePhotoUrl);
       } catch { /* shown elsewhere */ }
     }
+
+    // Duck HQ photo: uploads as soon as one is chosen (separate from "Save settings").
+    function showHomePhoto(url) {
+      const preview = document.getElementById("home-preview");
+      preview.classList.toggle("hidden", !url);
+      if (url) preview.src = url; else preview.removeAttribute("src");
+      document.getElementById("home-drop-text").classList.toggle("hidden", !!url);
+      document.getElementById("home-photo-remove").classList.toggle("hidden", !url);
+    }
+
+    function homePhotoMsg(kind, text) {
+      const msg = document.getElementById("home-photo-msg");
+      msg.className = "notice " + kind;
+      msg.textContent = text;
+    }
+
+    document.getElementById("home-photo-input").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      homePhotoMsg("info", "Uploading…");
+      const data = new FormData();
+      data.append("photo", await Duck.shrinkImage(file), "home.jpg");
+      try {
+        const res = await authed("/api/owner/home-photo", { method: "PUT", body: data });
+        showHomePhoto(res.homePhotoUrl);
+        homePhotoMsg("ok", "Photo saved! It's now at the start of the duck trail. 🎄");
+      } catch (err) {
+        homePhotoMsg("error", err.message);
+      } finally {
+        e.target.value = "";
+      }
+    });
+
+    document.getElementById("home-photo-remove").addEventListener("click", async () => {
+      if (!confirm("Remove the Duck HQ photo?")) return;
+      try {
+        await authed("/api/owner/home-photo", { method: "DELETE" });
+        showHomePhoto("");
+        homePhotoMsg("ok", "Photo removed.");
+      } catch (err) {
+        homePhotoMsg("error", err.message);
+      }
+    });
+
+    document.getElementById("test-email").addEventListener("click", async (e) => {
+      const msg = document.getElementById("test-email-msg");
+      e.target.disabled = true;
+      msg.className = "notice info";
+      msg.textContent = "Sending… (save your settings first if you just changed the address)";
+      try {
+        await authed("/api/owner/test-email", { method: "POST" });
+        msg.className = "notice ok";
+        msg.textContent = "Sent! Check your inbox (and spam folder). 🎄";
+      } catch (err) {
+        msg.className = "notice error";
+        msg.textContent = err.message;
+      } finally {
+        e.target.disabled = false;
+      }
+    });
 
     document.getElementById("settings-form").addEventListener("submit", async (e) => {
       e.preventDefault();

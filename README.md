@@ -43,12 +43,20 @@ Then open http://localhost:8080. The Go server also serves the website, so GitHu
 | `SITE_URL` | | URL of the website, e.g. `https://smartybryan.github.io/steal-some-christmas-cheer`. Defaults to `PUBLIC_URL`. |
 | `ALLOWED_ORIGINS` | if using GitHub Pages | Comma-separated origins allowed to call the API, e.g. `https://smartybryan.github.io`. |
 | `TRUST_PROXY` | | `true` if behind a reverse proxy, so rate limiting uses `X-Forwarded-For`. |
-| `NOTIFY_EMAIL` | | Email address(es) to notify, comma-separated. Enables email. |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | with email | SMTP over STARTTLS (port 587). Works with Gmail app passwords, Resend, SendGrid, etc. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | for email | SMTP over STARTTLS (port 587). Setting `SMTP_HOST` enables email. `SMTP_FROM` defaults to `SMTP_USERNAME`. Works with Gmail app passwords, Resend, SendGrid, etc. |
+| `NOTIFY_EMAIL` | | Fallback recipient, used only if no email address is entered on the owner Settings page. |
 | `NOTIFY_SMS` | | Phone number to text, e.g. `+18015551234`. Enables SMS. |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | with SMS | Twilio credentials and sending number. |
 
 Notifications are always written to the server log as well.
+
+**Email alerts:** the server sends the email, so SMTP has to be configured in the environment. The address it
+goes to is set on `owner.html` → **Settings** → "Email me when someone registers." That address is private:
+it is never included in the public `/api/public` response. Use **Send a test email** to check it works.
+
+**Using Gmail:** turn on 2-step verification, create an app password at
+https://myaccount.google.com/apppasswords, then set `SMTP_HOST=smtp.gmail.com`,
+`SMTP_USERNAME=you@gmail.com` and `SMTP_PASSWORD=<the app password>`.
 
 ### Docker
 
