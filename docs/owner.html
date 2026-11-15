@@ -167,7 +167,7 @@
         badge.textContent = pending;
         badge.classList.toggle("hidden", pending === 0);
         if (registrations.length === 0) {
-          box.replaceChildren(el("div", { class: "card loading" }, "No heists yet. The duck is still at Duck HQ! 🦆"));
+          box.replaceChildren(el("div", { class: "card loading" }, "No heists yet. The duck is still at Duck HQ! ", el("img", { class: "duck-icon", src: "duck.svg", alt: "" })));
           return;
         }
         // Show items needing vetting first, then newest first.

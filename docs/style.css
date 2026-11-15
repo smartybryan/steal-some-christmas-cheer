@@ -261,3 +261,6 @@ footer { text-align: center; color: var(--muted); padding: 24px 16px 40px; font-
 
 .loading { text-align: center; color: var(--muted); padding: 24px; }
 .hidden { display: none !important; }
+
+/* The cartoon duck, used inline in text in place of the 🦆 emoji. */
+.duck-icon { height: 1.2em; width: auto; vertical-align: -0.25em; }

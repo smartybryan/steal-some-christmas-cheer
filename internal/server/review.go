@@ -36,7 +36,7 @@ var reviewTemplate = template.Must(template.New("review").Parse(`<!doctype html>
  <h1>{{.Done}}</h1>
  <p class="done"><a href="{{.SiteURL}}/owner.html">Open the owner page</a></p>
 {{else}}
- <h1>🦆 Vet this duck sighting</h1>
+ <h1><img src="{{.SiteURL}}/duck.svg" alt="" style="height:1.2em;width:auto;margin:0;vertical-align:-0.25em"> Vet this duck sighting</h1>
  <span class="status">Status: {{.Reg.Status}}</span>
  {{if .Reg.HasPhoto}}<img src="{{.PhotoURL}}" alt="Photo uploaded by {{.Reg.Name}}">{{end}}
  <dl>
